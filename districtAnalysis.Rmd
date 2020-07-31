@@ -1,0 +1,355 @@
+---
+title: "Demographic Data of North NJ"
+subtitle: "Racial, Poverty, and Veteran"
+author: "Rachelle"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    code_folding: hide
+    theme: journal
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  message = FALSE,
+  echo = TRUE,
+  warning = FALSE
+)
+library(tidycensus)
+library(tidyverse)
+library(leaflet)
+library(sf)
+library(viridis)
+library(styler)
+options(tigris_use_cache = TRUE)
+
+```
+
+```{r}
+# The website says the Amcerican Community Survey (ACS) has their most recent data set as 2014-2018. The ACS includesvariables on social, economic, housing, and demographic aspects. It has 25,070 variables.
+
+var <- load_variables(year = 2018, dataset = "acs5")
+```
+
+```{r}
+# Finding the demographic variables and renaming them in a list
+demo_varsacs5 <- c(
+  black_population = "C02003_004",
+  white_population = "C02003_003",
+  nativeam = "B02010_001",
+  asian = "B02011_001",
+  hislat = "B03002_001",
+  hawpac = "B02012_001",
+  poverty = "B17001_002",
+  veteran = "B21001_002"
+)
+```
+
+[Census tracts](https://www.census.gov/programs-surveys/geography/about/glossary.html) are small, relatively permanent statistical subdivisions of  counties designed to be relatively homogeneous units with respect to population characteristics, economic status, and living conditions. They are updated by local participants prior to each decennial census as part of the Census Bureau's Participant Statistical Areas Program. Census tracts generally have a population size between 1,200 and 8,000 people, with an optimum size of 4,000 people. Census tract boundaries never cross county lines
+
+```{r}
+# We have to use tracts so that we can get geographical information using sf are leaflet
+nj_demo_tracts <- get_acs(
+  state = "NJ",
+  geography = "tract",
+  variables = demo_varsacs5,
+  # Use 2018 as year for more recent data
+  year = 2018,
+  geometry = TRUE,
+  keep_geo_vars = TRUE
+) %>%
+  # 4326 is most common map form
+  st_transform(4326)
+```
+
+```{r}
+# Function to create tracts
+tracts_func <- function(data, county_n, var_n) {
+  data %>%
+    # Filters the county
+    filter(COUNTYFP == county_n) %>%
+    # Filters for the variable from our variable list
+    filter(variable == var_n)
+}
+```
+
+```{r}
+#Function to pull variable from all tracts in TN SD-26
+alco_func <- function(var_n){
+  nj_demo_tracts %>%
+  filter(COUNTYFP == "003" #bergen
+         | COUNTYFP == "031" #passaic
+         | COUNTYFP == "013" #essex
+         | COUNTYFP == "027" #morris
+         | COUNTYFP == "037" #sussex
+         | COUNTYFP == "017" #hudson
+         | COUNTYFP == "039" #union
+         | COUNTYFP == "041") %>% #warren
+  filter(variable == var_n)
+}
+```
+
+```{r}
+#function to color the map. takes in string color pallette and mapping variable
+pal_func <- function(color, var_name){
+  colorNumeric(
+  palette = color,
+  domain = var_name$estimate,
+  reverse = TRUE
+  )
+}
+```
+
+
+```{r}
+# Function for creating leaflet map
+map_func <- function(data, title, title2) {
+  data %>%
+    leaflet(width = "100%") %>%
+    addProviderTiles(provider = "CartoDB.Positron") %>%
+    addPolygons(
+      label = ~ str_extract(NAME.y, "^([^,]*)"),
+      stroke = FALSE,
+      smoothFactor = 0,
+      fillOpacity = 0.7,
+      color = ~ pal(estimate)
+    ) %>%
+    addLegend("bottomright",
+      pal = pal,
+      values = ~estimate,
+      title = title,
+      opacity = 1
+    ) %>%
+    addControl(title2, position = "topright")
+}
+```
+
+# All Counties
+
+### Racial Demographics
+
+```{r}
+albl_tracts <- alco_func("black_population")
+```
+
+```{r}
+# Creating pallette to use with leaflet
+pal <- pal_func("viridis", albl_tracts)
+
+map_func(albl_tracts, "Black Population", "Black population Northern NJ")
+```
+
+```{r}
+alhs_tracts <- alco_func("hislat")
+```
+
+```{r}
+pal <- pal_func("viridis", alhs_tracts)
+
+map_func(alhs_tracts, "Hispanic/Latino Population", "Hispanic/Latino population in Northern NJ")
+```
+
+```{r}
+alwh_tracts <- alco_func("white_population")
+```
+
+```{r}
+pal <- pal_func("viridis", alwh_tracts)
+
+map_func(alwh_tracts, "White Population", "White population TN SD-26")
+```
+
+```{r}
+alas_tracts <- alco_func("asian")
+```
+
+```{r}
+pal <- pal_func("viridis", alas_tracts)
+
+map_func(alas_tracts, "Asian Population", "Asian population in Northern NJ")
+```
+
+```{r}
+alna_tracts <- alco_func("nativeam")
+```
+
+```{r}
+pal <- pal_func("viridis", alna_tracts)
+
+map_func(alna_tracts, "Native American & Alaskan Population", "Native American & Alaskan population in Northern NJ")
+```
+
+```{r}
+alha_tracts <- alco_func("hawpac")
+```
+
+```{r}
+pal <- pal_func("viridis", alha_tracts)
+
+map_func(alha_tracts, "Hawaiin and Pacific Islander Population", "Hawaiian and Pacific population in Northern NJ")
+```
+
+### Poverty Demographics
+
+```{r}
+allpov_tracts <- alco_func("poverty")
+```
+
+```{r}
+pal <- pal_func("plasma", allpov_tracts)
+
+map_func(allpov_tracts, "Population Living in Poverty", "Number of Impoverished People in Northern NJ")
+```
+
+### Veteran Demographics
+
+```{r}
+allvet_tracts <- alco_func("veteran")
+```
+
+```{r}
+pal <- pal_func("magma", allvet_tracts)
+
+map_func(allvet_tracts, "Veteran Population", "Number of Veterans in Northern NJ")
+```
+
+# Bergen County
+
+### Racial Demographics
+
+```{r}
+fybl_tracts <- tracts_func(nj_demo_tracts, "003", "black_population")
+```
+
+```{r}
+pal <- pal_func("viridis", fybl_tracts)
+
+map_func(fybl_tracts, "Black Population", "Black population of Bergen County")
+```
+
+```{r}
+fylat_tracts <- tracts_func(nj_demo_tracts, "003", "hislat")
+```
+
+```{r}
+pal <- pal_func("viridis", fylat_tracts)
+
+map_func(fylat_tracts, "Hispanic/Latino Population", "Hispanic/Latino population of Bergen County")
+```
+
+```{r}
+fywh_tracts <- tracts_func(nj_demo_tracts, "003", "white_population")
+```
+
+```{r}
+pal <- pal_func("viridis", fywh_tracts)
+
+map_func(fywh_tracts, "White Population", "White population of Bergen County")
+```
+
+```{r}
+fywh_tracts <- tracts_func(nj_demo_tracts, "003", "asian")
+```
+
+```{r}
+pal <- pal_func("viridis", fywh_tracts)
+
+map_func(fywh_tracts, "Asian Population", "Asian population of Bergen County")
+```
+
+### Poverty Demographics
+
+```{r}
+fypov_tracts <- tracts_func(nj_demo_tracts, "003", "poverty")
+```
+
+```{r}
+pal <- pal_func("plasma", fypov_tracts)
+
+map_func(fypov_tracts, "Population Living in Poverty ", "Poverty in Bergen County")
+```
+
+### Veteran Status
+
+```{r}
+fyvet_tracts <- tracts_func(nj_demo_tracts, "003", "veteran")
+```
+
+```{r}
+pal <- pal_func("magma", fyvet_tracts)
+
+map_func(fyvet_tracts, "Veteran Population", "Veteran population of Bergen County")
+```
+
+# Passaic County
+
+### Racial Demographics 
+
+```{r}
+hnbl_tracts <- tracts_func(nj_demo_tracts, "031", "black_population")
+```
+
+```{r}
+pal <- pal_func("viridis", hnbl_tracts)
+
+map_func(hnbl_tracts, "Black Population", "Black population of Passaic County")
+```
+
+```{r}
+hnlat_tracts <- tracts_func(nj_demo_tracts, "031", "hislat")
+```
+
+```{r}
+pal <- pal_func("viridis", hnlat_tracts)
+
+map_func(hnlat_tracts, "Hispanic/Latino Population", "Hispanic/Latino population of Passaic County")
+```
+
+```{r}
+hnwh_tracts <- tracts_func(nj_demo_tracts, "031", "white_population")
+```
+
+```{r}
+pal <- pal_func("viridis", hnwh_tracts)
+
+map_func(hnwh_tracts, "White Population", "White population of Passaic County")
+```
+
+```{r}
+hnwh_tracts <- tracts_func(nj_demo_tracts, "031", "asian")
+```
+
+```{r}
+pal <- pal_func("viridis", hnwh_tracts)
+
+map_func(hnwh_tracts, "Asian Population", "Asian population of Passaic County")
+```
+
+
+### Poverty Demographics
+
+```{r}
+hnpov_tracts <- tracts_func(nj_demo_tracts, "031", "poverty")
+```
+
+```{r}
+pal <- pal_func("plasma", hnpov_tracts)
+
+map_func(hnpov_tracts, "Population Living in Poverty", "Poverty in Passaic County")
+```
+
+### Veteran Demographics
+
+```{r}
+hnvet_tracts <- tracts_func(nj_demo_tracts, "031", "veteran")
+```
+
+```{r}
+pal <- pal_func("magma", hnvet_tracts)
+
+map_func(hnvet_tracts, "Veteran Population", "Veteran population of Passaic County")
+```
