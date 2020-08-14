@@ -1,3 +1,3 @@
 # bluebonnet-analysis
 
-this is work I've done for bluebonnet using dummy data as to not violate the NDA
+I don't want to violate my NDA but I still want to be able to showcase the work I've done and things I'm learning
